@@ -6,6 +6,14 @@
 
 **A next-generation, glassmorphism-powered README generator designed to make your GitHub profile stand out.**
 
+<div align="center">
+  <h3>
+    <a href="https://readme-generator-three-psi.vercel.app/">🔴 Live Demo</a>
+    <span> | </span>
+    <a href="https://github.com/karmaboy1309/readme-generator">💻 GitHub Repository</a>
+  </h3>
+</div>
+
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Vite](https://img.shields.io/badge/Vite-B73BFE?style=for-the-badge&logo=vite&logoColor=FFD62E)](https://vitejs.dev/)
@@ -72,16 +80,13 @@ Ensure you have [Node.js](https://nodejs.org/) installed on your machine.
 
 ---
 
-## 📸 Screenshots
-
-*(You can replace these placeholders with actual screenshots of your running application!)*
+## 📸 Screenshot
 
 <div align="center">
-  <img src="https://via.placeholder.com/800x450.png?text=Editor+Form+Preview" alt="Editor Form" width="800" />
-  <p><i>The intuitive, split-pane Glassmorphism Editor</i></p>
-
-  <img src="https://via.placeholder.com/800x450.png?text=Live+Markdown+Preview" alt="Live Markdown" width="800" />
-  <p><i>Real-time GitHub-Flavored Markdown rendering</i></p>
+  <a href="https://readme-generator-three-psi.vercel.app/">
+    <img src="https://image.thum.io/get/width/1200/crop/800/https://readme-generator-three-psi.vercel.app/" alt="App Screenshot" width="800" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
+  </a>
+  <p><i>Live screenshot of the Ultra-Premium Profile Generator</i></p>
 </div>
 
 ---
