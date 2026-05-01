@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
-import { Copy, Download, CheckCircle, UserCircle, Settings, Box, BarChart2, Share2, Link as LinkIcon, Edit3 } from 'lucide-react';
+import { Copy, Download, CheckCircle, UserCircle, Settings, Box, BarChart2, Share2, Link as LinkIcon, Edit3, Sparkles } from 'lucide-react';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { generateProfileReadme } from './Template';
 
 const SKILL_CATEGORIES = [
@@ -137,6 +138,59 @@ function App() {
   });
 
   const [copied, setCopied] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [aiError, setAiError] = useState('');
+
+  const handleEnhanceWithAI = async () => {
+    if (!apiKey) {
+      setAiError('Please provide your Gemini API Key to use this feature.');
+      return;
+    }
+
+    setIsEnhancing(true);
+    setAiError('');
+
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const activeAboutItems = state.aboutMe.filter(item => item.value.trim() !== '');
+      
+      const prompt = `
+        I am creating a GitHub Profile README. Here are my current answers for the 'About Me' section:
+        ${JSON.stringify(activeAboutItems, null, 2)}
+        
+        Please rewrite and enhance ONLY the 'value' fields to make them sound much more professional, impactful, engaging, and impressive. Keep the meaning similar but use better vocabulary and formatting.
+        Return the result as a valid JSON array of objects, where each object has the 'id' and the enhanced 'value'. 
+        DO NOT change the 'id'.
+        DO NOT include markdown backticks around the JSON.
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      let text = response.text();
+      
+      // Clean up markdown block if the model returned it anyway
+      text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+      
+      const enhancedData = JSON.parse(text);
+
+      setState(prev => {
+        const newAboutMe = prev.aboutMe.map(item => {
+          const enhancedItem = enhancedData.find(e => e.id === item.id);
+          return enhancedItem ? { ...item, value: enhancedItem.value } : item;
+        });
+        return { ...prev, aboutMe: newAboutMe };
+      });
+      
+    } catch (error) {
+      console.error(error);
+      setAiError('Failed to generate. Please check your API key and try again.');
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
 
   const markdownContent = useMemo(() => generateProfileReadme(state), [state]);
 
@@ -233,9 +287,35 @@ function App() {
 
           {/* About Me Section */}
           <section className="space-y-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2 text-gray-200">
-              <Edit3 className="w-5 h-5 text-gray-400" /> About Me
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold flex items-center gap-2 text-gray-200">
+                <Edit3 className="w-5 h-5 text-gray-400" /> About Me
+              </h2>
+            </div>
+            
+            {/* AI Enhancement Box */}
+            <div className="p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input 
+                  type="password" 
+                  placeholder="Enter Gemini API Key..." 
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  className="flex-1 bg-black/40 border border-white/10 rounded-lg p-2 text-sm text-gray-200 focus:border-purple-500 focus:outline-none transition-colors"
+                />
+                <button 
+                  onClick={handleEnhanceWithAI}
+                  disabled={isEnhancing}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-lg text-sm font-medium transition-all shadow-[0_0_15px_rgba(168,85,247,0.3)] disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {isEnhancing ? 'Enhancing...' : 'AI Enhance'}
+                </button>
+              </div>
+              {aiError && <p className="text-red-400 text-xs">{aiError}</p>}
+              <p className="text-xs text-gray-400">Get a free API key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-purple-400 hover:underline">Google AI Studio</a> to automatically rewrite your info professionally!</p>
+            </div>
+
             <div className="space-y-3">
               {state.aboutMe.map(item => (
                 <div key={item.id} className="flex items-center gap-2">
