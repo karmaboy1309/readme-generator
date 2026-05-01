@@ -46,10 +46,22 @@ export const generateProfileReadme = (state) => {
       if (key === 'leetcode') iconUrl = 'https://cdn.simpleicons.org/leetcode/FFA116';
       if (key === 'discord') iconUrl = 'https://cdn.simpleicons.org/discord/5865F2';
 
-      return `<a href="${url}" target="blank"><img src="${iconUrl}" alt="${key}" height="30" width="40" /></a>`;
+      return `<a href="${url}" target="blank"><img align="center" src="${iconUrl}" alt="${key}" height="30" width="40" /></a>`;
     });
     
-    markdown += socialTags.join(' ') + `\n\n`;
+    const itemsPerRow = 4;
+    let gridLayout = `<table>\n`;
+    for (let i = 0; i < socialTags.length; i += itemsPerRow) {
+      gridLayout += `  <tr>\n`;
+      const rowTags = socialTags.slice(i, i + itemsPerRow);
+      rowTags.forEach(tag => {
+        gridLayout += `    <td align="center" width="96">\n      ${tag}\n    </td>\n`;
+      });
+      gridLayout += `  </tr>\n`;
+    }
+    gridLayout += `</table>\n\n`;
+    
+    markdown += gridLayout;
   }
 
   // 3. About Me (Work, Learn, Collab, etc.)
