@@ -95,30 +95,64 @@ export const generateProfileReadme = (state) => {
     markdown += skillTags.join(' ') + `\n\n`;
   }
 
+  const statsTheme = addons.githubStatsTheme || 'dark';
+  const summaryThemeMap = {
+    dark: 'github_dark',
+    synthwave: 'synthwave',
+    radical: 'radical',
+    tokyonight: 'tokyonight',
+    dracula: 'dracula'
+  };
+  const summaryTheme = summaryThemeMap[statsTheme] || 'github_dark';
+  const quoteTheme = statsTheme === 'dark' ? 'dark' : 'light';
+
+  const getGithubStatsCard = () => {
+    if (addons.githubStatsProvider === 'ghstats') {
+      return `https://github-readme-stats.vercel.app/api?username=${socials.github}&show_icons=true&rank_icon=github&theme=${statsTheme}&cache_seconds=7200`;
+    }
+    return `https://gitlyy.vercel.app/api/overview?username=${socials.github}&theme=${statsTheme}`;
+  };
+
+  const getTopLangsCard = () => {
+    if (addons.topLangsProvider === 'summary') {
+      return `https://github-profile-summary-cards.vercel.app/api/cards/most-commit-language?username=${socials.github}&theme=${summaryTheme}&cache_seconds=7200`;
+    }
+    if (addons.topLangsProvider === 'ghstats') {
+      return `https://github-readme-stats.vercel.app/api/top-langs/?username=${socials.github}&layout=compact&theme=${statsTheme}&cache_seconds=7200`;
+    }
+    return `https://gitlyy.vercel.app/api/languages?username=${socials.github}&theme=${statsTheme}&layout=donut`;
+  };
+
+  const getStreakCard = () => {
+    if (addons.streakProvider === 'streak-stats') {
+      return `https://streak-stats.demolab.com?user=${socials.github}&theme=${statsTheme}&cache_seconds=7200`;
+    }
+    return `https://gitlyy.vercel.app/api/streak?username=${socials.github}&theme=${statsTheme}`;
+  };
+
   // 5. GitHub Stats (Gitlyy or traditional)
   if ((addons.githubStats || addons.topLangs || addons.streakStats) && socials.github) {
     markdown += `## 📊 GitHub Stats\n\n<div align="center">\n`;
     
-    // We can use Gitlyy for these stats as requested before, but user said "content and all should be like this [rahul's]".
-    // Rahul's generator uses Anurag Hazra's github-readme-stats. Let's use Gitlyy to promote our own tool!
-    // Since Gitlyy is the user's project, we must prioritize Gitlyy endpoints.
-    
-    const theme = addons.githubStatsTheme || 'dark';
-    
     if (addons.githubStats) {
-      markdown += `  <img src="https://gitlyy.vercel.app/api/overview?username=${socials.github}&theme=${theme}" alt="${socials.github}'s GitHub Overview" />\n<br/>\n<br/>\n`;
+      markdown += `  <img src="${getGithubStatsCard()}" alt="${socials.github}'s GitHub Overview" />\n<br/>\n<br/>\n`;
     }
     
     if (addons.topLangs && addons.streakStats) {
-      markdown += `  <img src="https://gitlyy.vercel.app/api/languages?username=${socials.github}&theme=${theme}&layout=donut" alt="${socials.github}'s Top Languages" height="200" />\n`;
-      markdown += `  <img src="https://gitlyy.vercel.app/api/streak?username=${socials.github}&theme=${theme}" alt="${socials.github}'s Streak" height="200" />\n`;
+      markdown += `  <img src="${getTopLangsCard()}" alt="${socials.github}'s Top Languages" height="200" />\n`;
+      markdown += `  <img src="${getStreakCard()}" alt="${socials.github}'s Streak" height="200" />\n`;
     } else if (addons.topLangs) {
-      markdown += `  <img src="https://gitlyy.vercel.app/api/languages?username=${socials.github}&theme=${theme}&layout=compact" alt="${socials.github}'s Top Languages" />\n`;
+      markdown += `  <img src="${getTopLangsCard()}" alt="${socials.github}'s Top Languages" />\n`;
     } else if (addons.streakStats) {
-      markdown += `  <img src="https://gitlyy.vercel.app/api/streak?username=${socials.github}&theme=${theme}" alt="${socials.github}'s Streak" />\n`;
+      markdown += `  <img src="${getStreakCard()}" alt="${socials.github}'s Streak" />\n`;
     }
     
     markdown += `</div>\n\n`;
+  }
+
+  if (addons.quoteCard) {
+    markdown += `## 💬 Quote\n\n`;
+    markdown += `<img src="https://quotes-github-readme.vercel.app/api?type=horizontal&theme=${quoteTheme}" alt="Quote" />\n\n`;
   }
 
   return markdown;

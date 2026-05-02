@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import { Copy, Download, CheckCircle, UserCircle, Settings, Box, BarChart2, Share2, Link as LinkIcon, Edit3, Sparkles } from 'lucide-react';
@@ -106,6 +106,138 @@ const SOCIAL_OPTIONS = [
   { id: 'discord', label: 'Discord', icon: 'https://cdn.simpleicons.org/discord/5865F2' },
 ];
 
+const CARD_PREVIEWS = {
+  githubStats: [
+    {
+      id: 'gitlyy',
+      label: 'Overview (Gitlyy)',
+      image: new URL('../state cards/4.jpg', import.meta.url).href
+    },
+    {
+      id: 'ghstats',
+      label: 'Ranked (Readme Stats)',
+      image: new URL('../state cards/3.png', import.meta.url).href
+    }
+  ],
+  topLangs: [
+    {
+      id: 'ghstats',
+      label: 'Top Languages (Bars)',
+      image: new URL('../state cards/2.png', import.meta.url).href
+    },
+    {
+      id: 'summary',
+      label: 'Most Used Languages',
+      image: new URL('../state cards/5.jpg', import.meta.url).href
+    }
+  ],
+  streak: [
+    {
+      id: 'streak-stats',
+      label: 'Classic Streak',
+      image: new URL('../state cards/6.jpg', import.meta.url).href
+    },
+    {
+      id: 'gitlyy',
+      label: 'Neon Streak',
+      image: new URL('../state cards/7.png', import.meta.url).href
+    }
+  ],
+  quote: {
+    id: 'quote',
+    label: 'Quote Card',
+    image: new URL('../state cards/8.png', import.meta.url).href
+  }
+};
+
+const getFallbackCardSrc = (source) => {
+  if (!source) {
+    return null;
+  }
+
+  try {
+    const url = new URL(source);
+    const username = url.searchParams.get('username') || url.searchParams.get('user');
+    const theme = url.searchParams.get('theme') || 'dark';
+
+    if (url.hostname.includes('github-readme-stats.vercel.app')) {
+      if (url.pathname.includes('/api/top-langs')) {
+        return `https://gitlyy.vercel.app/api/languages?username=${username}&theme=${theme}&layout=donut`;
+      }
+      if (url.pathname.includes('/api')) {
+        return `https://gitlyy.vercel.app/api/overview?username=${username}&theme=${theme}`;
+      }
+    }
+
+    if (url.hostname.includes('github-profile-summary-cards.vercel.app')) {
+      return `https://github-readme-stats.vercel.app/api/top-langs/?username=${username}&layout=compact&theme=${theme}`;
+    }
+
+    if (url.hostname.includes('streak-stats.demolab.com')) {
+      return `https://gitlyy.vercel.app/api/streak?username=${username}&theme=${theme}`;
+    }
+  } catch (error) {
+    return null;
+  }
+
+  return null;
+};
+
+function MarkdownImage({ src, alt }) {
+  const [failed, setFailed] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState(src);
+  const [attempt, setAttempt] = useState(0);
+  const [usedFallback, setUsedFallback] = useState(false);
+
+  useEffect(() => {
+    setCurrentSrc(src);
+    setAttempt(0);
+    setFailed(false);
+    setUsedFallback(false);
+  }, [src]);
+
+  const fallbackSrc = getFallbackCardSrc(currentSrc);
+  const cacheBustedSrc = src
+    ? `${currentSrc}${currentSrc.includes('?') ? '&' : '?'}v=${attempt}`
+    : currentSrc;
+
+  if (failed) {
+    return (
+      <div className="rounded-lg border border-white/10 bg-black/30 p-3 text-xs text-gray-400">
+        <p className="mb-2">Image failed to load: {alt || 'Card'}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setFailed(false);
+            setAttempt(prev => prev + 1);
+          }}
+          className="inline-flex items-center rounded-md border border-white/20 px-2 py-1 text-xs text-gray-200 hover:border-white/40"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={cacheBustedSrc}
+      alt={alt}
+      loading="lazy"
+      className="max-w-full"
+      onError={() => {
+        if (!usedFallback && fallbackSrc && fallbackSrc !== currentSrc) {
+          setUsedFallback(true);
+          setCurrentSrc(fallbackSrc);
+          setAttempt(prev => prev + 1);
+          return;
+        }
+        setFailed(true);
+      }}
+    />
+  );
+}
+
 function App() {
   const [state, setState] = useState({
     name: 'karmaboy1309',
@@ -131,20 +263,79 @@ function App() {
     addons: {
       githubStats: true,
       githubStatsTheme: "dark",
+      githubStatsProvider: "gitlyy",
       topLangs: true,
+      topLangsProvider: "ghstats",
       streakStats: true,
+      streakProvider: "gitlyy",
       visitorsBadge: true,
+      quoteCard: false,
     }
   });
 
   const [copied, setCopied] = useState(false);
-  const [apiKey, setApiKey] = useState('');
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [aiError, setAiError] = useState('');
+  const geminiApiKey =
+    import.meta.env.VITE_GEMINI_API_KEY ||
+    import.meta.env.VITE_GOOGLE_API_KEY ||
+    import.meta.env.VITE_AI_API_KEY;
+
+  const parseEnhancedData = (rawText) => {
+    const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    try {
+      return JSON.parse(cleaned);
+    } catch (error) {
+      const match = cleaned.match(/\[[\s\S]*\]/);
+      if (!match) {
+        throw error;
+      }
+      return JSON.parse(match[0]);
+    }
+  };
+
+  const requestEnhancement = async (prompt) => {
+    try {
+      const genAI = new GoogleGenerativeAI(geminiApiKey);
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: 'application/json'
+        }
+      });
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      return response.text();
+    } catch (error) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+      const fallbackResponse = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: 'application/json'
+          }
+        })
+      });
+
+      if (!fallbackResponse.ok) {
+        throw error;
+      }
+
+      const data = await fallbackResponse.json();
+      return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    }
+  };
 
   const handleEnhanceWithAI = async () => {
-    if (!apiKey) {
-      setAiError('Please provide your Gemini API Key to use this feature.');
+    if (!geminiApiKey) {
+      setAiError('AI enhance is unavailable right now.');
       return;
     }
 
@@ -152,41 +343,47 @@ function App() {
     setAiError('');
 
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
       const activeAboutItems = state.aboutMe.filter(item => item.value.trim() !== '');
+      if (activeAboutItems.length === 0) {
+        setAiError('Add some About Me details first.');
+        return;
+      }
       
       const prompt = `
-        I am creating a GitHub Profile README. Here are my current answers for the 'About Me' section:
-        ${JSON.stringify(activeAboutItems, null, 2)}
-        
-        Please rewrite and enhance ONLY the 'value' fields to make them sound much more professional, impactful, engaging, and impressive. Keep the meaning similar but use better vocabulary and formatting.
-        Return the result as a valid JSON array of objects, where each object has the 'id' and the enhanced 'value'. 
-        DO NOT change the 'id'.
-        DO NOT include markdown backticks around the JSON.
-      `;
+    You are helping polish a GitHub Profile README.
+    Here are the current 'About Me' entries as JSON:
+    ${JSON.stringify(activeAboutItems, null, 2)}
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      let text = response.text();
-      
-      // Clean up markdown block if the model returned it anyway
-      text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-      
-      const enhancedData = JSON.parse(text);
+    Rewrite ONLY the "value" fields.
+    Rules:
+    - Preserve the exact meaning.
+    - Improve grammar, clarity, and professional tone.
+    - Do NOT add new facts or extra info.
+
+    Return only a JSON array of objects: [{"id":"...","value":"..."}].
+    Do not include markdown fences or extra text.
+      `.trim();
+
+      const text = await requestEnhancement(prompt);
+      const enhancedData = parseEnhancedData(text);
+      if (!Array.isArray(enhancedData)) {
+        throw new Error('Invalid AI response.');
+      }
 
       setState(prev => {
         const newAboutMe = prev.aboutMe.map(item => {
           const enhancedItem = enhancedData.find(e => e.id === item.id);
-          return enhancedItem ? { ...item, value: enhancedItem.value } : item;
+          if (!enhancedItem || typeof enhancedItem.value !== 'string') {
+            return item;
+          }
+          return { ...item, value: enhancedItem.value };
         });
         return { ...prev, aboutMe: newAboutMe };
       });
       
     } catch (error) {
       console.error(error);
-      setAiError('Failed to generate. Please check your API key and try again.');
+      setAiError('AI enhance failed. Please try again.');
     } finally {
       setIsEnhancing(false);
     }
@@ -219,6 +416,13 @@ function App() {
     setState(prev => ({
       ...prev,
       addons: { ...prev.addons, [name]: type === 'checkbox' ? checked : value }
+    }));
+  };
+
+  const handleAddonSelect = (name, value) => {
+    setState(prev => ({
+      ...prev,
+      addons: { ...prev.addons, [name]: value }
     }));
   };
 
@@ -296,13 +500,6 @@ function App() {
             {/* AI Enhancement Box */}
             <div className="p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl space-y-3">
               <div className="flex flex-col sm:flex-row gap-3">
-                <input 
-                  type="password" 
-                  placeholder="Enter Gemini API Key..." 
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="flex-1 bg-black/40 border border-white/10 rounded-lg p-2 text-sm text-gray-200 focus:border-purple-500 focus:outline-none transition-colors"
-                />
                 <button 
                   onClick={handleEnhanceWithAI}
                   disabled={isEnhancing}
@@ -313,7 +510,6 @@ function App() {
                 </button>
               </div>
               {aiError && <p className="text-red-400 text-xs">{aiError}</p>}
-              <p className="text-xs text-gray-400">Get a free API key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-purple-400 hover:underline">Google AI Studio</a> to automatically rewrite your info professionally!</p>
             </div>
 
             <div className="space-y-3">
@@ -434,6 +630,14 @@ function App() {
                 <span className="text-sm text-gray-300">Display GitHub Streak Card</span>
               </label>
 
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <input type="checkbox" name="quoteCard" checked={state.addons.quoteCard} onChange={handleAddonChange} className="hidden" />
+                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${state.addons.quoteCard ? 'bg-blue-500 border-blue-500' : 'bg-black/30 border-white/20 group-hover:border-white/40'}`}>
+                  {state.addons.quoteCard && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+                </div>
+                <span className="text-sm text-gray-300">Display Quote Card</span>
+              </label>
+
               <div className="mt-2 pl-8">
                 <label className="block text-xs text-gray-400 mb-1">Gitlyy Theme</label>
                 <select name="githubStatsTheme" value={state.addons.githubStatsTheme} onChange={handleAddonChange} className="bg-black/30 border border-white/10 rounded-lg p-2 text-sm text-gray-200 focus:outline-none">
@@ -443,6 +647,71 @@ function App() {
                   <option value="tokyonight">Tokyonight</option>
                   <option value="dracula">Dracula</option>
                 </select>
+              </div>
+
+              <div className="mt-6 space-y-5">
+                <div>
+                  <p className="text-sm text-gray-300 mb-2">GitHub Stats Card Style</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {CARD_PREVIEWS.githubStats.map(card => (
+                      <button
+                        key={card.id}
+                        type="button"
+                        onClick={() => handleAddonSelect('githubStatsProvider', card.id)}
+                        className={`rounded-xl border p-2 text-left transition-all ${state.addons.githubStatsProvider === card.id ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.25)]' : 'border-white/10 hover:border-white/30'}`}
+                      >
+                        <img src={card.image} alt={card.label} className="w-full rounded-lg" />
+                        <span className="mt-2 block text-xs text-gray-300">{card.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-300 mb-2">Top Languages Card Style</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {CARD_PREVIEWS.topLangs.map(card => (
+                      <button
+                        key={card.id}
+                        type="button"
+                        onClick={() => handleAddonSelect('topLangsProvider', card.id)}
+                        className={`rounded-xl border p-2 text-left transition-all ${state.addons.topLangsProvider === card.id ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.25)]' : 'border-white/10 hover:border-white/30'}`}
+                      >
+                        <img src={card.image} alt={card.label} className="w-full rounded-lg" />
+                        <span className="mt-2 block text-xs text-gray-300">{card.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-300 mb-2">Streak Card Style</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {CARD_PREVIEWS.streak.map(card => (
+                      <button
+                        key={card.id}
+                        type="button"
+                        onClick={() => handleAddonSelect('streakProvider', card.id)}
+                        className={`rounded-xl border p-2 text-left transition-all ${state.addons.streakProvider === card.id ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.25)]' : 'border-white/10 hover:border-white/30'}`}
+                      >
+                        <img src={card.image} alt={card.label} className="w-full rounded-lg" />
+                        <span className="mt-2 block text-xs text-gray-300">{card.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-300 mb-2">Quote Card Preview</p>
+                  <button
+                    type="button"
+                    onClick={() => handleAddonChange({ target: { name: 'quoteCard', type: 'checkbox', checked: !state.addons.quoteCard } })}
+                    className={`rounded-xl border p-2 text-left transition-all ${state.addons.quoteCard ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.25)]' : 'border-white/10 hover:border-white/30'}`}
+                  >
+                    <img src={CARD_PREVIEWS.quote.image} alt={CARD_PREVIEWS.quote.label} className="w-full rounded-lg" />
+                    <span className="mt-2 block text-xs text-gray-300">{CARD_PREVIEWS.quote.label}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </section>
@@ -473,7 +742,12 @@ function App() {
 
         <div className="flex-1 overflow-y-auto p-8 markdown-preview text-[#c9d1d9] custom-scrollbar">
           <div className="max-w-3xl mx-auto">
-            <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+            <ReactMarkdown
+              rehypePlugins={[rehypeRaw]}
+              components={{
+                img: MarkdownImage
+              }}
+            >
               {markdownContent}
             </ReactMarkdown>
           </div>
